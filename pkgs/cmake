@@ -1,0 +1,2 @@
+ver=3.11.2
+url=https://cmake.org/files/v${ver%.*}/$pkg-$ver.tar.gz

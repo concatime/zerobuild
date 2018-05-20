@@ -1,0 +1,4 @@
+vers=2.7.3
+dist=https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/$pkg-$ver.tar.gz
+type=cmake
+args='BUILD_SHARED_LIBS=1 ENABLE_EXTRATESTS=0'

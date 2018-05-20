@@ -1,0 +1,97 @@
+#!/bin/sh
+# POSIX comliant
+set -x
+
+export CFLAGS='-march=native -O3 -pipe'
+
+_CC=$(readlink -f $(which ${CC:-cc}))
+echo __COMPILER__
+$_CC --version
+
+echo Checking whether the compiler supports “-fstack-protector-strong”…
+echo 'int main(){}' | $_CC -fsyntax-only -fstack-protector-strong -xc - \
+	&& CFLAGS=$CFLAGS\ -fstack-protector-strong
+
+bye() { echo $1 && rm -fR $PWD && exit 1; }
+
+cd $(mktemp -d)
+
+[ $1 ] || bye "No argument supplied!"
+
+pkg=$1
+#shift
+
+wget https://raw.githubusercontent.com/concatime/zerobuild/master/pkgs/$pkg
+[ -f $pkg ] || bye "The package is not present in the repository!\n How about submitting it?"
+
+do_build() {
+	case $type in
+		autotools|'')
+			for _p in $args; do
+				opts+=\ --$_p
+			done
+			[ -f autogen.sh ] && ./autogen.sh
+			./configure $opts
+			make -j`nproc`
+			make ${mkp:-install}
+		;;
+		cmake)
+			for _p in $args; do
+				opts+=\ -D$_p
+			done
+			cmake -GNinja $opts
+			ninja
+			ninja install
+		;;
+	esac
+}
+
+. ./$pkg
+exit 0
+mkcd() { mkdir -p $1 && cd $1; }
+#testcmd() { hash $1 2<&- || echo You should install ${2:-$1} && exit 1; }
+testcmd() { hash $* 2<&-; }
+dl_extract() { wget $dist && tar xf * --strip-components=1; }
+build_autotools() {
+	bye 'Please build autotools'
+}
+build_cmake() {
+	bye 'Please build cmake'
+}
+# mute $* $@
+# BUILD AUTOTOOLS (make m4 autoconf automake)
+
+echo Path:$PWD
+case $make in
+	autotools|'')
+		# autoconf: autoreconf
+		# automake: aclocal
+		# LIBTOOL???
+		# POSIX Shell does not support fallthrough
+		scriptpath=$(dirname $(realpath -s $0))
+		if [ $pkg != make ]; then
+			testcmd make || scriptpath make
+			if [ $pkg != m4 ]; then
+				testcmd m4 || scriptpath m4
+				if [ $pkg != autoconf ]; then
+					testcmd autoconf autoreconf || scriptpath autoconf
+					if [ $pkg != automake ]; then
+						testcmd automake aclocal || scriptpath automake
+		fi	fi	fi	fi
+		#hash make m4 autoconf autoreconf aclocal 2<&- || build_autotools
+	;;
+	cmake)
+		hash cmake ninja 2<&- || build_cmake
+	;;
+	*) hash $how 2<&- || echo You should install $how
+esac
+case $dist in
+	git*) git clone https://$dist.git --branch=${rel:-$ver} . ;;
+	gnu)
+		url="https://ftpmirror.gnu.org/$pkg/$pkg-$vers.tar.$ext"
+		dl_extract ;;
+	*)  dl_extract
+esac
+do_build
+#rm -fR $PWD
+# __ENF

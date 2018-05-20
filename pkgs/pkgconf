@@ -1,0 +1,3 @@
+vers=1.5.4
+dist=https://distfiles.dereferenced.org/$pkg/$pkg-$ver.tar.xz
+make=meson

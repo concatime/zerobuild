@@ -1,0 +1,4 @@
+ver=5.1.0
+url=github.com/jemalloc/jemalloc
+arg=disable-stats
+mkp='install_bin install_include install_lib_shared install_lib_pc'

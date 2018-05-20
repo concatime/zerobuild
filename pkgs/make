@@ -1,0 +1,9 @@
+ver=4.2
+url=gnu
+ext=bz2
+#how=autotools # REDUNDANT
+do_build() {
+	./configure
+	sh build.sh
+	./make install
+}
