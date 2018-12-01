@@ -1,6 +1,6 @@
 #!/bin/sh
 # POSIX comliant
-set -x
+#set -x
 
 export CFLAGS='-march=native -O3 -pipe'
 
@@ -8,32 +8,42 @@ _CC=$(readlink -f $(which ${CC:-cc}))
 echo __COMPILER__
 $_CC --version
 
+echo Detecting whether gcc or clang is under use…
+case $(basename $_CC) in
+	clang*)_CC=clang && CFLAGS=$CFLAGS\ -Wno-unused-command-line-argument;;
+	*gcc*) _CC=gcc   ;; # Asterix at start: x86_64-linux-gnu-gcc-8
+	*) echo Unsupported compiler \`$_CC\' && false
+esac
+
 echo Checking whether the compiler supports “-fstack-protector-strong”…
 echo 'int main(){}' | $_CC -fsyntax-only -fstack-protector-strong -xc - \
 	&& CFLAGS=$CFLAGS\ -fstack-protector-strong
 
-bye() { echo $1 && rm -fR $PWD && exit 1; }
+[ $1 ] || echo "No argument supplied!" && false
 
-cd $(mktemp -d)
+#cd $(mktemp -d)
 
-[ $1 ] || bye "No argument supplied!"
+cd musl
+./configure --prefix=/opt --enable-wrapper=$_CC
+make -j`nproc` --silent install
+cd -
+
+export CC=/opt/bin/musl-$_CC
 
 pkg=$1
 #shift
 
-wget https://raw.githubusercontent.com/concatime/zerobuild/master/pkgs/$pkg
-[ -f $pkg ] || bye "The package is not present in the repository!\n How about submitting it?"
+wget https://raw.githubusercontent.com/concatime/zerobuild/develop/pkgs/$pkg
+[ -f $pkg ] || echo "The package is not present in the repository!\n How about submitting it?" && false
 
 do_build() {
 	case $type in
 		autotools|'')
-			for _p in $args; do
-				opts+=\ --$_p
-			done
 			[ -f autogen.sh ] && ./autogen.sh
-			./configure $opts
+			./configure $args
+			cat config.log
 			make -j`nproc`
-			make ${mkp:-install}
+			make install
 		;;
 		cmake)
 			for _p in $args; do
@@ -47,51 +57,33 @@ do_build() {
 }
 
 . ./$pkg
-exit 0
 mkcd() { mkdir -p $1 && cd $1; }
 #testcmd() { hash $1 2<&- || echo You should install ${2:-$1} && exit 1; }
 testcmd() { hash $* 2<&-; }
-dl_extract() { wget $dist && tar xf * --strip-components=1; }
-build_autotools() {
-	bye 'Please build autotools'
+dl_extract() {
+	wget --directory-prefix=$1 $2 && tar xf * --strip-components=1
 }
-build_cmake() {
-	bye 'Please build cmake'
-}
+
 # mute $* $@
 # BUILD AUTOTOOLS (make m4 autoconf automake)
 
 echo Path:$PWD
-case $make in
+case $type in
 	autotools|'')
-		# autoconf: autoreconf
-		# automake: aclocal
-		# LIBTOOL???
-		# POSIX Shell does not support fallthrough
-		scriptpath=$(dirname $(realpath -s $0))
-		if [ $pkg != make ]; then
-			testcmd make || scriptpath make
-			if [ $pkg != m4 ]; then
-				testcmd m4 || scriptpath m4
-				if [ $pkg != autoconf ]; then
-					testcmd autoconf autoreconf || scriptpath autoconf
-					if [ $pkg != automake ]; then
-						testcmd automake aclocal || scriptpath automake
-		fi	fi	fi	fi
-		#hash make m4 autoconf autoreconf aclocal 2<&- || build_autotools
+		hash make m4 aclocal autoheader automake autoconf
 	;;
 	cmake)
 		hash cmake ninja 2<&- || build_cmake
 	;;
 	*) hash $how 2<&- || echo You should install $how
 esac
-case $dist in
-	git*) git clone https://$dist.git --branch=${rel:-$ver} . ;;
+case $(echo $dist | tail -c5) in
+	.git) git clone $dist --single-branch --branch=${_tag:-$vers} build ;;
 	gnu)
-		url="https://ftpmirror.gnu.org/$pkg/$pkg-$vers.tar.$ext"
-		dl_extract ;;
+		dl_extract build "https://ftpmirror.gnu.org/$pkg/$pkg-$vers.tar.$ext" ;;
 	*)  dl_extract
 esac
+cd build
 do_build
 #rm -fR $PWD
 # __ENF

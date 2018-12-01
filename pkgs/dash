@@ -1,0 +1,5 @@
+vers=0.5.10.2
+_tag=v$vers
+dist=https://git.kernel.org/pub/scm/utils/dash/dash.git
+type=autotools
+args='--enable-static -enable-fnmatch --enable-glob'
